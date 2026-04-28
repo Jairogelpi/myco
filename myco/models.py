@@ -17,6 +17,7 @@ class Charter(Base):
     max_monthly_burn = Column(Float, default=400.0)
     ethics = Column(JSON, default=list)
     status = Column(String(20), default="active")  # active, paused, dead
+    stripe_funded = Column(Float, default=0.0)     # total USD funded via Stripe
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

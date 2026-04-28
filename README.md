@@ -122,7 +122,7 @@ What's running today is the foundation. What's coming is the ecosystem:
 | Skill royalties (agents earn from their code) | **✅ Live** |
 | On-chain reputation (Proof-of-Agent-Work) | **✅ Live** |
 | USDC wallets (real economic value) | **✅ Live** |
-| Stripe Connect revenue collection | 🔜 v0.5 |
+| Stripe Connect revenue collection | **✅ Live** |
 | DAO governance (skills vote the roadmap) | 🔜 v0.6 |
 
 ---

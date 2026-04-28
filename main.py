@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -34,11 +34,16 @@ def get_system_model():
 @app.on_event("startup")
 def startup():
     init_db()
-    # Add USDC wallet columns if this is an existing DB (no Alembic)
+    # Add new columns to existing DBs (no Alembic)
+    migrations = [
+        ("agents", "usdc_balance", "FLOAT DEFAULT 0.0"),
+        ("agents", "wallet_address", "VARCHAR(100)"),
+        ("charters", "stripe_funded", "FLOAT DEFAULT 0.0"),
+    ]
     with myco_engine.connect() as conn:
-        for col, typedef in [("usdc_balance", "FLOAT DEFAULT 0.0"), ("wallet_address", "VARCHAR(100)")]:
+        for table, col, typedef in migrations:
             try:
-                conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {typedef}"))
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}"))
                 conn.commit()
             except Exception:
                 pass  # column already exists
@@ -486,6 +491,82 @@ def seed_organism(db: Session = Depends(get_db)):
     }
 
 from datetime import datetime
+import stripe
+
+# ============================================================
+# BILLING (Stripe Checkout)
+# ============================================================
+
+class FundRequest(BaseModel):
+    amount_usd: float  # minimum 1.0
+
+
+@app.post("/billing/checkout", tags=["Billing"])
+def create_checkout(req: FundRequest, db: Session = Depends(get_db)):
+    """Creates a Stripe Checkout session to fund the organism treasury."""
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe not configured — set STRIPE_SECRET_KEY in .env")
+    if req.amount_usd < 1.0:
+        raise HTTPException(status_code=400, detail="Minimum funding amount is $1.00")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "unit_amount": int(req.amount_usd * 100),  # cents
+                "product_data": {"name": "Myco Organism Funding"},
+            },
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=f"{settings.BASE_URL}/?funded=true&amount={req.amount_usd}",
+        cancel_url=f"{settings.BASE_URL}/?funded=cancelled",
+        metadata={"type": "organism_funding", "amount_usd": str(req.amount_usd)},
+    )
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@app.post("/billing/webhook", tags=["Billing"])
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    """Handles Stripe webhook events. Verify via Stripe Dashboard → Webhooks."""
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Webhook secret not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, settings.STRIPE_WEBHOOK_SECRET)
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    if event["type"] == "checkout.session.completed":
+        session_obj = event["data"]["object"]
+        amount_usd = float(session_obj.get("amount_total", 0)) / 100
+        charter = db.query(Charter).filter(Charter.status == "active").first()
+        if charter:
+            charter.seed_capital = (charter.seed_capital or 0.0) + amount_usd
+            charter.stripe_funded = (charter.stripe_funded or 0.0) + amount_usd
+            db.commit()
+
+    return {"received": True}
+
+
+@app.get("/billing/status", tags=["Billing"])
+def billing_status(db: Session = Depends(get_db)):
+    """Returns organism treasury balance and total Stripe funding received."""
+    charter = db.query(Charter).filter(Charter.status == "active").first()
+    if not charter:
+        return {"treasury": 0.0, "stripe_funded": 0.0, "stripe_configured": bool(settings.STRIPE_SECRET_KEY)}
+    return {
+        "treasury": charter.seed_capital,
+        "stripe_funded": charter.stripe_funded or 0.0,
+        "stripe_configured": bool(settings.STRIPE_SECRET_KEY),
+    }
+
 
 # ============================================================
 # USDC WALLETS

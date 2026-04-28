@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     COMMONS_URL: str = ""  # e.g. https://myco-commons.onrender.com
 
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    BASE_URL: str = "http://localhost:8000"  # used for Stripe redirect URLs
+
     class Config:
         env_file = ".env"
 
