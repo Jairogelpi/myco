@@ -540,12 +540,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     stripe.api_key = settings.STRIPE_SECRET_KEY
     try:
         event = stripe.Webhook.construct_event(payload, sig, settings.STRIPE_WEBHOOK_SECRET)
-    except stripe.error.SignatureVerificationError:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    if event["type"] == "checkout.session.completed":
-        session_obj = event["data"]["object"]
-        amount_usd = float(session_obj.get("amount_total", 0)) / 100
+    if event.type == "checkout.session.completed":
+        session_obj = event.data.object
+        amount_usd = float(getattr(session_obj, "amount_total", 0) or 0) / 100
         charter = db.query(Charter).filter(Charter.status == "active").first()
         if charter:
             charter.seed_capital = (charter.seed_capital or 0.0) + amount_usd
