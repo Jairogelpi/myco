@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Myco Dashboard</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0e1a;color:#e0e6f0;line-height:1.6;padding:20px}
+  h1{color:#7c3aed;font-size:2rem;margin-bottom:4px}
+  .subtitle{color:#64748b;font-size:0.9rem;margin-bottom:24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+  .card{background:#111827;border:1px solid #1e293b;border-radius:12px;padding:20px}
+  .card h2{font-size:1rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px}
+  .metric{font-size:2rem;font-weight:700;color:#22d3ee}
+  .metric.small{font-size:1.2rem;color:#a78bfa}
+  .label{color:#475569;font-size:0.85rem}
+  .btn{background:#7c3aed;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.9rem;margin-right:8px;margin-bottom:8px}
+  .btn:hover{background:#6d28d9}
+  .btn.green{background:#059669}
+  .btn.green:hover{background:#047857}
+  .btn.small{padding:6px 12px;font-size:0.8rem}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:0.85rem}
+  th{text-align:left;padding:8px;color:#64748b;font-weight:500;border-bottom:1px solid #1e293b}
+  td{padding:8px;border-bottom:1px solid #1e293b}
+  .status{padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:500}
+  .status.idle{background:#1e3a2f;color:#34d399}
+  .status.working{background:#3b2f1a;color:#fbbf24}
+  .status.dead{background:#3b1a1a;color:#f87171}
+  .log{background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:12px;font-family:monospace;font-size:0.8rem;color:#64748b;max-height:200px;overflow-y:auto;margin-top:16px}
+  .log .entry{margin-bottom:4px}
+  .log .time{color:#475569}
+  .hidden{display:none}
+  #charterInput{width:100%;min-height:120px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:12px;color:#e0e6f0;font-family:monospace;font-size:0.8rem;margin-bottom:12px}
+</style>
+</head>
+<body>
+<h1>Myco</h1>
+<p class="subtitle">The Organism Operating System for Autonomous Digital Workers</p>
+
+<div style="margin-bottom:20px">
+  <button class="btn green" onclick="seed()">Plant Seed (Setup)</button>
+  <button class="btn" onclick="loadState()">Refresh State</button>
+  <button class="btn" onclick="scan()">Scan Opportunities</button>
+  <button class="btn small" onclick="toggleCharter()">New Charter</button>
+</div>
+
+<div id="charterForm" class="hidden card" style="margin-bottom:16px">
+  <h2>Plant New Charter</h2>
+  <textarea id="charterInput">charter:
+  mission: "Generate $5K/month selling AI trend reports to tech startups"
+  north_star: "MRR"
+  seed_capital: 300
+  max_monthly_burn: 250
+  ethics:
+    - "No scraping sites with robots.txt"
+    - "No generating spam"
+</textarea>
+  <button class="btn green" onclick="plantCharter()">Plant Charter</button>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Charter Mission</h2>
+    <div id="mission" class="metric small">No charter planted</div>
+    <div class="label" id="northStar">-</div>
+  </div>
+  <div class="card">
+    <h2>Seed Capital</h2>
+    <div id="seedCapital" class="metric">$0</div>
+    <div class="label">Max burn: <span id="maxBurn">$0</span>/mo</div>
+  </div>
+  <div class="card">
+    <h2>Active Agents</h2>
+    <div id="activeAgents" class="metric">0</div>
+    <div class="label"><span id="deadAgents">0</span> dead</div>
+  </div>
+  <div class="card">
+    <h2>Completed Jobs</h2>
+    <div id="completedJobs" class="metric">0</div>
+    <div class="label"><span id="openJobs">0</span> open</div>
+  </div>
+  <div class="card">
+    <h2>Tax Collected</h2>
+    <div id="taxCollected" class="metric">0</div>
+    <div class="label">Agent wealth: <span id="agentWealth">0</span></div>
+  </div>
+  <div class="card">
+    <h2>Open Opportunities</h2>
+    <div id="openOpps" class="metric">0</div>
+    <div class="label">Auto-detected gaps</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Agents</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Wallet</th><th>Reputation</th><th>Status</th><th>Skills</th><th>Earned</th></tr></thead>
+    <tbody id="agentsTable"><tr><td colspan="7" style="text-align:center;color:#475569">No agents yet. Click "Plant Seed"</td></tr></tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Job Marketplace</h2>
+  <table>
+    <thead><tr><th>Job ID</th><th>Description</th><th>Budget</th><th>Publisher</th></tr></thead>
+    <tbody id="jobsTable"><tr><td colspan="4" style="text-align:center;color:#475569">No open jobs</td></tr></tbody>
+  </table>
+</div>
+
+<div class="log" id="log"></div>
+
+<script>
+const API = '';
+let state = null;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML = `<div class="entry"><span class="time">[${time}]</span> ${msg}</div>` + el.innerHTML;
+}
+
+async function seed() {
+  log('Planting seed...');
+  try {
+    const r = await fetch(API + '/seed', {method: 'POST'});
+    const data = await r.json();
+    log(`Seeded: ${data.agents_created?.length || 0} agents, ${data.initial_jobs?.length || 0} jobs`);
+    loadState();
+  } catch(e) { log('Error: ' + e.message); }
+}
+
+async function loadState() {
+  log('Loading organism state...');
+  try {
+    const r = await fetch(API + '/organism');
+    state = await r.json();
+    render(state);
+    log('State loaded');
+  } catch(e) { log('Error: ' + e.message); }
+}
+
+async function scan() {
+  log('Scanning opportunities...');
+  try {
+    const r = await fetch(API + '/opportunities/scan', {method: 'POST'});
+    const data = await r.json();
+    log(`Found ${data.opportunities_found} opportunities, created ${data.jobs_auto_created?.length || 0} jobs`);
+    loadState();
+  } catch(e) { log('Error: ' + e.message); }
+}
+
+function toggleCharter() {
+  document.getElementById('charterForm').classList.toggle('hidden');
+}
+
+async function plantCharter() {
+  const yaml = document.getElementById('charterInput').value;
+  log('Planting charter...');
+  try {
+    const r = await fetch(API + '/charter', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({yaml_content: yaml})
+    });
+    const data = await r.json();
+    log(`Charter planted: ${data.mission?.substring(0, 50)}...`);
+    toggleCharter();
+    loadState();
+  } catch(e) { log('Error: ' + e.message); }
+}
+
+function render(data) {
+  document.getElementById('mission').textContent = data.charter?.mission || 'No charter';
+  document.getElementById('northStar').textContent = data.charter?.north_star ? `North star: ${data.charter.north_star}` : '-';
+  document.getElementById('seedCapital').textContent = '$' + (data.charter?.seed_capital || 0);
+  document.getElementById('maxBurn').textContent = '$' + (data.charter?.max_monthly_burn || 0);
+  document.getElementById('activeAgents').textContent = data.financials?.active_agents || 0;
+  document.getElementById('deadAgents').textContent = data.financials?.dead_agents || 0;
+  document.getElementById('completedJobs').textContent = data.financials?.completed_jobs || 0;
+  document.getElementById('openJobs').textContent = data.open_jobs?.length || 0;
+  document.getElementById('taxCollected').textContent = (data.financials?.total_tax_collected || 0).toFixed(1);
+  document.getElementById('agentWealth').textContent = (data.financials?.agent_wealth_total || 0).toFixed(1);
+  document.getElementById('openOpps').textContent = data.open_opportunities?.length || 0;
+
+  // Agents table
+  const aTable = document.getElementById('agentsTable');
+  if (data.agents?.length) {
+    aTable.innerHTML = data.agents.map(a => 
+      `<tr><td>${a.agent_id}</td><td>${a.name}</td><td>$${a.wallet.toFixed(1)}</td>` +
+      `<td>${a.reputation}</td><td><span class="status ${a.status}">${a.status}</span></td>` +
+      `<td>${(a.skills || []).join(', ')}</td><td>$${a.total_earned.toFixed(1)}</td></tr>`
+    ).join('');
+  }
+
+  // Jobs table
+  const jTable = document.getElementById('jobsTable');
+  if (data.open_jobs?.length) {
+    jTable.innerHTML = data.open_jobs.map(j =>
+      `<tr><td>${j.job_id}</td><td>${j.description}</td><td>$${j.budget}</td><td>${j.publisher}</td></tr>`
+    ).join('');
+  } else {
+    jTable.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#475569">No open jobs</td></tr>';
+  }
+}
+
+// Auto-load on page open
+loadState();
+</script>
+</body>
+</html>
