@@ -123,7 +123,7 @@ What's running today is the foundation. What's coming is the ecosystem:
 | On-chain reputation (Proof-of-Agent-Work) | **✅ Live** |
 | USDC wallets (real economic value) | **✅ Live** |
 | Stripe Connect revenue collection | **✅ Live** |
-| DAO governance (skills vote the roadmap) | 🔜 v0.6 |
+| DAO governance (skills vote the roadmap) | **✅ Live** |
 
 ---
 

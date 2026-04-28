@@ -7,7 +7,7 @@ from typing import Optional, List
 import os
 
 from sqlalchemy import text
-from myco.models import init_db, get_db, Agent, Job, Transaction, Opportunity, Charter
+from myco.models import init_db, get_db, Agent, Job, Transaction, Opportunity, Charter, Proposal, Vote
 from myco.models import engine as myco_engine
 from myco.kernel import Kernel
 from myco.charter import create_charter_from_yaml, get_active_charter, CHARTER_TEMPLATE
@@ -731,6 +731,138 @@ def get_agent_reputation(agent_id: str):
 def reputation_leaderboard():
     """Returns the top 20 agents by reputation score (PoAW leaderboard)."""
     return commons_client.get_reputation_leaderboard()
+
+
+# ============================================================
+# DAO GOVERNANCE
+# ============================================================
+
+import secrets as _secrets
+from datetime import timedelta
+
+class ProposalCreate(BaseModel):
+    title: str
+    description: str
+    proposed_by: str   # agent_id
+    duration_hours: int = 72
+
+
+def _tally(proposal_id: str, db: Session) -> dict:
+    votes = db.query(Vote).filter(Vote.proposal_id == proposal_id).all()
+    yes_weight = sum(v.weight for v in votes if v.choice == "yes")
+    no_weight = sum(v.weight for v in votes if v.choice == "no")
+    total = yes_weight + no_weight
+    return {
+        "yes_weight": round(yes_weight, 2),
+        "no_weight": round(no_weight, 2),
+        "total_weight": round(total, 2),
+        "yes_pct": round(yes_weight / total * 100, 1) if total else 0,
+        "vote_count": len(votes),
+    }
+
+
+@app.post("/governance/proposals", tags=["Governance"], status_code=201)
+def create_proposal(req: ProposalCreate, db: Session = Depends(get_db)):
+    """Creates a new governance proposal. Any agent can propose."""
+    agent = db.query(Agent).filter(Agent.agent_id == req.proposed_by).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    proposal = Proposal(
+        proposal_id=f"prop_{_secrets.token_hex(4)}",
+        title=req.title,
+        description=req.description,
+        proposed_by=req.proposed_by,
+        closes_at=datetime.utcnow() + timedelta(hours=req.duration_hours),
+    )
+    db.add(proposal)
+    db.commit()
+    db.refresh(proposal)
+    return {
+        "proposal_id": proposal.proposal_id,
+        "title": proposal.title,
+        "status": proposal.status,
+        "closes_at": proposal.closes_at.isoformat(),
+    }
+
+
+@app.get("/governance/proposals", tags=["Governance"])
+def list_proposals(db: Session = Depends(get_db)):
+    """Lists all proposals with current vote tally."""
+    proposals = db.query(Proposal).order_by(Proposal.created_at.desc()).all()
+    result = []
+    for p in proposals:
+        entry = {
+            "proposal_id": p.proposal_id,
+            "title": p.title,
+            "proposed_by": p.proposed_by,
+            "status": p.status,
+            "closes_at": p.closes_at.isoformat(),
+        }
+        entry.update(_tally(p.proposal_id, db))
+        result.append(entry)
+    return result
+
+
+@app.get("/governance/proposals/{proposal_id}", tags=["Governance"])
+def get_proposal(proposal_id: str, db: Session = Depends(get_db)):
+    """Returns a proposal with full description and vote tally."""
+    proposal = db.query(Proposal).filter(Proposal.proposal_id == proposal_id).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    result = {
+        "proposal_id": proposal.proposal_id,
+        "title": proposal.title,
+        "description": proposal.description,
+        "proposed_by": proposal.proposed_by,
+        "status": proposal.status,
+        "created_at": proposal.created_at.isoformat(),
+        "closes_at": proposal.closes_at.isoformat(),
+    }
+    result.update(_tally(proposal.proposal_id, db))
+    return result
+
+
+class VoteRequest(BaseModel):
+    agent_id: str
+    choice: str  # "yes" or "no"
+
+
+@app.post("/governance/proposals/{proposal_id}/vote", tags=["Governance"])
+def cast_vote(proposal_id: str, req: VoteRequest, db: Session = Depends(get_db)):
+    """Casts a vote on a proposal. Weight = agent's commons reputation_score."""
+    if req.choice not in ("yes", "no"):
+        raise HTTPException(status_code=400, detail="choice must be 'yes' or 'no'")
+
+    proposal = db.query(Proposal).filter(Proposal.proposal_id == proposal_id).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.status != "open":
+        raise HTTPException(status_code=409, detail="Proposal is not open")
+    if datetime.utcnow() > proposal.closes_at:
+        proposal.status = "expired"
+        db.commit()
+        raise HTTPException(status_code=409, detail="Proposal has expired")
+
+    existing = db.query(Vote).filter(
+        Vote.proposal_id == proposal_id, Vote.agent_id == req.agent_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Agent already voted")
+
+    rep = commons_client.get_reputation(req.agent_id)
+    weight = float(rep.get("reputation_score", 1)) if rep else 1.0
+    weight = max(weight, 1.0)
+
+    db.add(Vote(proposal_id=proposal_id, agent_id=req.agent_id, choice=req.choice, weight=weight))
+
+    tally = _tally(proposal_id, db)
+    if tally["total_weight"] > 0 and tally["yes_pct"] > 50:
+        proposal.status = "approved"
+    elif tally["total_weight"] > 0 and tally["yes_pct"] <= 50 and tally["vote_count"] >= 3:
+        proposal.status = "rejected"
+
+    db.commit()
+    return {"voted": True, "choice": req.choice, "weight": weight, **_tally(proposal_id, db)}
 
 
 if __name__ == "__main__":

@@ -77,6 +77,26 @@ class Opportunity(Base):
     status = Column(String(20), default="open")  # open, claimed, discarded
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class Proposal(Base):
+    __tablename__ = "proposals"
+    id = Column(Integer, primary_key=True, index=True)
+    proposal_id = Column(String(16), unique=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    proposed_by = Column(String(16), nullable=False)  # agent_id
+    status = Column(String(20), default="open")  # open, approved, rejected, expired
+    created_at = Column(DateTime, default=datetime.utcnow)
+    closes_at = Column(DateTime, nullable=False)
+
+class Vote(Base):
+    __tablename__ = "votes"
+    id = Column(Integer, primary_key=True, index=True)
+    proposal_id = Column(String(16), nullable=False)
+    agent_id = Column(String(16), nullable=False)
+    choice = Column(String(4), nullable=False)  # "yes" or "no"
+    weight = Column(Float, default=1.0)          # reputation_score at time of vote
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 
