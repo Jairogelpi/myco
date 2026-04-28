@@ -3,6 +3,7 @@ from myco.skills_engine import SkillsEngine, Skill
 from myco.agent import AgentExecutor, client, MODEL
 from myco.models import Agent as AgentModel
 from myco.kernel import Kernel
+from myco.commons_client import commons_client
 
 class KarpathyLoop:
     """
@@ -171,28 +172,35 @@ As the worker who did this task, write ONE sentence explaining what approach or 
                 break
         
         if matching_skill:
-            # Try to use the skill
             result = self.skills_engine.execute_skill(agent_id, matching_skill, task=task)
             if "error" not in result:
+                commons_client.record_use(matching_skill)
                 return {
                     "used_skill": matching_skill,
                     "output": str(result.get("result", "")),
-                    "method": "skill"
+                    "method": "skill",
+                    "commons_suggestions": [],
                 }
-        
+
+        # Query commons for operator review — non-blocking, never delays execution
+        commons_suggestions = []
+        if commons_client.is_available():
+            commons_suggestions = commons_client.search(task)[:3]
+
         # Fallback: regular AI execution
         executor = AgentExecutor(
             agent_id=agent.agent_id,
             name=agent.name,
             role=agent.role_description,
-            skills=agent.skills
+            skills=agent.skills,
         )
         output = executor.execute(task)
-        
+
         return {
             "used_skill": None,
             "output": output,
-            "method": "ai_fallback"
+            "method": "ai_fallback",
+            "commons_suggestions": commons_suggestions,
         }
     
     def list_agent_skills(self, agent_id: str) -> list:
