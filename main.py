@@ -14,6 +14,7 @@ from myco.autonomy import AutonomyEngine
 from myco.improvement import KarpathyLoop
 from myco.skills_engine import SkillsEngine
 from myco.config import settings
+from myco.commons_client import commons_client
 
 app = FastAPI(title="Myco", description="The organism operating system for autonomous digital workers.")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -475,6 +476,77 @@ def seed_organism(db: Session = Depends(get_db)):
     }
 
 from datetime import datetime
+
+# ============================================================
+# SKILL COMMONS
+# ============================================================
+
+@app.post("/commons/publish/{agent_id}/{skill_name}", tags=["Skill Commons"])
+def publish_skill_to_commons(agent_id: str, skill_name: str):
+    """Publishes a locally-generated skill to the global Skill Commons."""
+    if not commons_client.is_available():
+        raise HTTPException(status_code=503, detail="COMMONS_URL not configured")
+    engine = SkillsEngine()
+    code = engine.get_skill_code(agent_id, skill_name)
+    if not code:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found for agent {agent_id}")
+    skills = engine.list_skills(agent_id)
+    meta = next((s for s in skills if s["name"] == skill_name), {})
+    result = commons_client.publish(
+        name=skill_name,
+        description=meta.get("description", ""),
+        code=code,
+        agent_id=agent_id,
+        category="other",
+        tags=[],
+    )
+    if not result:
+        raise HTTPException(status_code=503, detail="Commons server unavailable")
+    return {"published": True, "commons_skill": result}
+
+
+@app.get("/commons/search", tags=["Skill Commons"])
+def search_commons(q: str = "", category: str = None):
+    """Searches the global Skill Commons. Returns skill metadata only — no code."""
+    if not commons_client.is_available():
+        return {"available": False, "results": []}
+    results = commons_client.search(q, category)
+    return {"available": True, "count": len(results), "results": results}
+
+
+@app.post("/commons/download/{skill_id}", tags=["Skill Commons"])
+def download_commons_skill(skill_id: str):
+    """
+    Downloads a skill from the commons and installs it locally under agent_id='commons'.
+    This is the operator approval gate — code is not executed until explicitly run.
+    """
+    if not commons_client.is_available():
+        raise HTTPException(status_code=503, detail="COMMONS_URL not configured")
+    code = commons_client.get_code(skill_id)
+    if not code:
+        raise HTTPException(status_code=404, detail="Skill not found in commons")
+    from myco.skills_engine import Skill
+    skill_engine = SkillsEngine()
+    skill = Skill(
+        name=f"commons_{skill_id[:8]}",
+        code=code,
+        description=f"Downloaded from commons (id: {skill_id})",
+        agent_id="commons",
+    )
+    saved = skill_engine.save_skill("commons", skill)
+    if not saved:
+        raise HTTPException(status_code=500, detail="Failed to save skill locally")
+    commons_client.record_download(skill_id)
+    return {"downloaded": True, "local_name": skill.name, "agent_id": "commons"}
+
+
+@app.get("/commons/skills", tags=["Skill Commons"])
+def list_downloaded_commons_skills():
+    """Lists all skills downloaded from the commons (stored under agent_id='commons')."""
+    skill_engine = SkillsEngine()
+    skills = skill_engine.list_skills("commons")
+    return {"count": len(skills), "skills": skills}
+
 
 if __name__ == "__main__":
     import uvicorn
