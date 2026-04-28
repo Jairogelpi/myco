@@ -1,7 +1,7 @@
 import uuid
 import json
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Text, DateTime
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -36,3 +36,21 @@ class CommonsSkill(Base):
         if include_code:
             d["code"] = self.code
         return d
+
+
+ROYALTY_RATE = 1.0  # credits per use
+
+
+class RoyaltyBalance(Base):
+    __tablename__ = "royalty_balances"
+
+    agent_id = Column(String, primary_key=True)
+    credits = Column(Float, nullable=False, default=0.0)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "agent_id": self.agent_id,
+            "credits": self.credits,
+            "updated_at": self.updated_at.isoformat(),
+        }

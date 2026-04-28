@@ -4,11 +4,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from commons_server.database import get_db, engine
-from commons_server.models import Base, CommonsSkill
+from commons_server.models import Base, CommonsSkill, RoyaltyBalance, ROYALTY_RATE
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Myco Skill Commons", version="0.3.0")
+app = FastAPI(title="Myco Skill Commons", version="0.4.0")
 
 
 class PublishRequest(BaseModel):
@@ -87,5 +87,32 @@ def record_use(skill_id: str, db: Session = Depends(get_db)):
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
     skill.total_uses += 1
+
+    balance = db.query(RoyaltyBalance).filter(RoyaltyBalance.agent_id == skill.agent_id).first()
+    if balance:
+        balance.credits += ROYALTY_RATE
+        balance.updated_at = __import__("datetime").datetime.utcnow()
+    else:
+        db.add(RoyaltyBalance(agent_id=skill.agent_id, credits=ROYALTY_RATE))
+
     db.commit()
-    return {"total_uses": skill.total_uses}
+    return {"total_uses": skill.total_uses, "royalty_credited": ROYALTY_RATE, "publisher": skill.agent_id}
+
+
+@app.get("/royalties/{agent_id}")
+def get_royalties(agent_id: str, db: Session = Depends(get_db)):
+    balance = db.query(RoyaltyBalance).filter(RoyaltyBalance.agent_id == agent_id).first()
+    if not balance:
+        return {"agent_id": agent_id, "credits": 0.0, "updated_at": None}
+    return balance.to_dict()
+
+
+@app.get("/royalties")
+def royalties_leaderboard(db: Session = Depends(get_db)):
+    balances = (
+        db.query(RoyaltyBalance)
+        .order_by(RoyaltyBalance.credits.desc())
+        .limit(20)
+        .all()
+    )
+    return [b.to_dict() for b in balances]

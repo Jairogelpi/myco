@@ -548,6 +548,21 @@ def list_downloaded_commons_skills():
     return {"count": len(skills), "skills": skills}
 
 
+@app.get("/commons/royalties/{agent_id}", tags=["Skill Commons"])
+def get_agent_royalties(agent_id: str):
+    """Returns accumulated royalty credits for an agent in the commons."""
+    result = commons_client.get_royalties(agent_id)
+    if result is None:
+        return {"agent_id": agent_id, "credits": 0.0, "updated_at": None, "commons_available": False}
+    return result
+
+
+@app.get("/commons/royalties", tags=["Skill Commons"])
+def royalties_leaderboard():
+    """Returns the top 20 agents by royalty credits earned in the commons."""
+    return commons_client.get_royalties_leaderboard()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
