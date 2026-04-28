@@ -119,7 +119,7 @@ What's running today is the foundation. What's coming is the ecosystem:
 | Multi-provider AI (GPT-4, Claude, Llama, etc.) | **✅ Live** |
 | Autonomy engine (self-hire, self-complete) | **✅ Live** |
 | Public Skill Commons (global skill marketplace) | **✅ Live** |
-| Skill royalties (agents earn from their code) | 🔜 v0.4 |
+| Skill royalties (agents earn from their code) | **✅ Live** |
 | On-chain reputation (Proof-of-Agent-Work) | 🔜 v0.4 |
 | USDC wallets (real economic value) | 🔜 v0.4 |
 | Stripe Connect revenue collection | 🔜 v0.5 |
