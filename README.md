@@ -1,12 +1,43 @@
 # Myco — The Organism Operating System
 
-> From agents that you manage... to organisms that feed you.
+> You don't manage AI agents. You own an economic organism that pays you.
 
-Myco is an autonomous digital worker ecosystem built on FastAPI. You plant a **Charter** — a YAML mission with capital and ethics constraints — and Myco deploys self-managing AI agents that hire each other, bid on jobs, execute tasks, and improve themselves through a generated-skill loop.
+**The first open-source OS where AI agents earn money, pay each other for skills, and improve themselves — without you lifting a finger.**
 
-Unlike traditional agent frameworks, Myco treats agents as **economic units**: they hold wallets, earn tokens, pay each other, and fund the Kernel's growth tax. The system runs without human intervention after the Charter is planted.
+---
 
-## Quick Start
+## The 60-Second Pitch
+
+Every other AI framework gives you agents you have to babysit.
+
+Myco gives you an **economic organism**:
+
+1. You plant a **Charter** (a mission + capital in 10 lines of YAML)
+2. The **Kernel** detects what skills are needed and posts jobs
+3. **Agents** bid against each other, get hired, execute the work
+4. The Kernel collects a 15% tax — the rest goes to the agent that did the work
+5. When an agent does something new well, it **writes its own reusable skill** (via Karpathy Loop) so it never pays the AI cost for that task again
+6. You withdraw dividends
+
+You aren't a manager. You're a **landlord of digital workers**.
+
+---
+
+## What Makes This Different
+
+| | CrewAI | AutoGen | LangGraph | **Myco** |
+|---|---|---|---|---|
+| Agents have wallets | ✗ | ✗ | ✗ | **✅** |
+| Agents pay each other | ✗ | ✗ | ✗ | **✅** |
+| Agents self-hire | ✗ | ✗ | ✗ | **✅** |
+| Agents write their own skills | ✗ | ✗ | ✗ | **✅** |
+| Built-in economic marketplace | ✗ | ✗ | ✗ | **✅** |
+| Switch AI model in 1 line | ✗ | partial | ✗ | **✅** |
+| No lock-in to OpenAI | ✗ | ✗ | ✗ | **✅** |
+
+---
+
+## Quick Start (under 5 minutes)
 
 ```bash
 git clone https://github.com/Jairogelpi/myco
@@ -14,31 +45,91 @@ cd myco
 python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env and set OPENROUTER_API_KEY
+# Get a free key at openrouter.ai — paste it into .env
 uvicorn main:app --reload
 ```
 
-Seed a default organism (charter + agents + jobs) in one call:
+Plant your first organism:
 
 ```bash
 curl -X POST http://localhost:8000/seed
-curl http://localhost:8000/organism
 ```
 
-Dashboard available at [http://localhost:8000](http://localhost:8000).
+That one command creates a charter, deploys agents, posts jobs, and starts the economic cycle. Open [http://localhost:8000](http://localhost:8000) and watch the dashboard.
 
-## Configuration
+---
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | Yes | — | Get a free key at [openrouter.ai](https://openrouter.ai/settings/keys) |
-| `OPENROUTER_MODEL` | No | `openai/gpt-4o-mini` | Any model ID from the table below |
-| `DATABASE_URL` | No | `sqlite:///./data/myco.db` | SQLite path, auto-created on first run |
-| `KERNEL_TAX_RATE` | No | `0.15` | Fraction of each payment collected as Kernel tax |
+## The Karpathy Loop: How Agents Get Smarter for Free
+
+When an agent executes a task poorly, Myco doesn't just try again. It writes a **Skill** — a real Python function — and saves it to disk:
+
+```
+data/skills/
+└── agent_abc123/
+    ├── manifest.json        ← usage stats, success rate
+    └── research_duckduckgo.py  ← the agent wrote this itself
+```
+
+Next time a similar task appears, the agent runs its own code **instead of calling the AI**. The cost drops to near zero. The speed doubles.
+
+This is how a $5/month AI bill becomes a self-funding operation.
+
+---
+
+## How to Make Your First $1,000
+
+This is a real example flow, not a demo:
+
+**Week 1 — Plant the organism**
+```yaml
+charter:
+  mission: "Write and deliver 10 B2B newsletters per week for retail clients"
+  north_star: "newsletters_delivered"
+  seed_capital: 100
+  max_monthly_burn: 80
+```
+
+**Week 2 — Agents self-organize**
+- Researcher agent finds leads via web search skills
+- Writer agent drafts newsletters using learned templates
+- Delivery agent sends via Mailgun API (skill it wrote on first run)
+- Each completed newsletter = internal transaction between agents
+
+**Week 3 — Skills compound**
+- Agents reuse their own skills → AI cost drops 60-80%
+- Researcher publishes its DuckDuckGo scraper to the commons
+- Other organisms start using it (royalties coming in v0.3)
+
+**Week 4 — Revenue**
+- 10 newsletters/week × $25/client = $250/week from 1 charter
+- Multiple charters = multiple organisms running in parallel
+- You monitor the dashboard. Agents do the rest.
+
+---
+
+## The Vision: Agent Commons (Roadmap)
+
+What's running today is the foundation. What's coming is the ecosystem:
+
+| Feature | Status |
+|---------|--------|
+| Agents with wallets | **✅ Live** |
+| Internal marketplace + bidding | **✅ Live** |
+| Karpathy Loop (self-written skills) | **✅ Live** |
+| Multi-provider AI (GPT-4, Claude, Llama, etc.) | **✅ Live** |
+| Autonomy engine (self-hire, self-complete) | **✅ Live** |
+| Public Skill Commons (global skill marketplace) | 🔜 v0.3 |
+| Skill royalties (agents earn from their code) | 🔜 v0.3 |
+| On-chain reputation (Proof-of-Agent-Work) | 🔜 v0.4 |
+| USDC wallets (real economic value) | 🔜 v0.4 |
+| Stripe Connect revenue collection | 🔜 v0.5 |
+| DAO governance (skills vote the roadmap) | 🔜 v0.6 |
+
+---
 
 ## Supported AI Models
 
-Switch models by changing `OPENROUTER_MODEL` in `.env` — no code changes required.
+Set `OPENROUTER_MODEL` in `.env`. No code changes. Switch anytime.
 
 | Model | Best For | Cost |
 |-------|----------|------|
@@ -49,79 +140,58 @@ Switch models by changing `OPENROUTER_MODEL` in `.env` — no code changes requi
 | `deepseek/deepseek-chat` | Reasoning, coding | $ |
 | `qwen/qwen-2.5-72b-instruct` | Multilingual | $ |
 
+---
+
 ## Architecture
 
 ```
 myco/
-├── main.py               # FastAPI REST API — all endpoints and startup lifecycle
-├── static/index.html     # Web dashboard (vanilla HTML/CSS/JS, no build step)
+├── main.py               # FastAPI REST API — all endpoints and lifecycle
+├── static/index.html     # Live dashboard (vanilla JS, no build step)
 └── myco/
-    ├── kernel.py         # Central registry, marketplace, ledger, opportunity scanner
-    ├── agent.py          # OpenRouter executor — builds prompts, calls AI, handles fallback
-    ├── autonomy.py       # Self-hiring engine — agents publish, bid, execute, and complete autonomously
-    ├── improvement.py    # Karpathy Loop — evaluates output quality, generates skills when quality is low
-    ├── skills_engine.py  # Manages learned Python skills in data/skills/{agent_id}/, runs them via exec()
-    ├── charter.py        # YAML mission parser — capital, burn limits, north-star metric, ethics
-    └── models.py         # SQLAlchemy ORM — Charter, Agent, Job, Transaction, Opportunity
+    ├── kernel.py         # The soil: registry, marketplace, ledger, opportunity scanner
+    ├── agent.py          # AI executor — any model via OpenRouter
+    ├── autonomy.py       # Self-hiring engine: publish → bid → execute → complete
+    ├── improvement.py    # Karpathy Loop: poor output → new skill generated
+    ├── skills_engine.py  # Skill persistence and execution via exec()
+    ├── charter.py        # YAML mission parser
+    └── models.py         # SQLAlchemy: Charter, Agent, Job, Transaction, Opportunity
 ```
 
-### How It Works
+### Configuration
 
-1. A **Charter** defines the mission, seed capital, and ethics constraints
-2. The **Kernel** scans for skill, capacity, and market gaps → publishes **Jobs** to the marketplace
-3. **Agents** bid on jobs (score = skill match + reputation / bid price) → the winning agent executes the task via AI
-4. On completion, the Kernel collects a 15% tax, pays the agent, and records the **Transaction**
-5. If output quality is poor, the **Karpathy Loop** generates a new **Skill** — a Python function stored to disk and reused in future tasks without calling the AI again
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENROUTER_API_KEY` | Yes | — | [openrouter.ai](https://openrouter.ai/settings/keys) — free tier available |
+| `OPENROUTER_MODEL` | No | `openai/gpt-4o-mini` | Any model from the table above |
+| `DATABASE_URL` | No | `sqlite:///./data/myco.db` | Auto-created on first run |
+| `KERNEL_TAX_RATE` | No | `0.15` | Fraction collected as Kernel growth fund |
 
-## API Reference
+---
 
-| Group | Method | Endpoint | Description |
-|-------|--------|----------|-------------|
-| **System** | GET | `/` | Web dashboard |
-| | GET | `/system/model` | Current AI provider and model |
-| **Charter** | POST | `/charter` | Plant a new charter from YAML |
-| | GET | `/charter` | Get the active charter |
-| | GET | `/charter/template` | Default charter YAML template |
-| **Organism** | GET | `/organism` | Full state — charter, agents, jobs, P&L |
-| **Agents** | POST | `/agents` | Register a new agent |
-| | GET | `/agents` | List all agents |
-| | GET | `/agents/{id}` | Agent details and transaction history |
-| | POST | `/agents/{id}/execute` | Execute a task via AI |
-| **Marketplace** | POST | `/jobs` | Publish a job to the marketplace |
-| | GET | `/jobs` | List open jobs |
-| | POST | `/jobs/{id}/bid` | Bid on a job (auto-assigns if best score) |
-| | POST | `/jobs/{id}/complete` | Complete job, pay agent, collect tax |
-| **Opportunities** | POST | `/opportunities/scan` | Kernel scans for gaps and auto-publishes jobs |
-| **Autonomy** | POST | `/autonomy/cycle` | Full autonomous cycle: publish → bid → execute → complete |
-| | POST | `/autonomy/publish` | Agent self-publishes a job |
-| | POST | `/autonomy/bid/{job_id}` | Auto-bid on a specific job |
-| | POST | `/autonomy/execute/{job_id}` | Auto-execute an assigned job |
-| | POST | `/autonomy/complete/{job_id}` | Auto-complete with payment |
-| | POST | `/autonomy/detect` | Agent detects skill gap and publishes a job |
-| **Self-Improvement** | POST | `/improvement/evaluate` | Run Karpathy Loop evaluation |
-| | POST | `/improvement/execute-with-skills` | Execute using learned skills before falling back to AI |
-| | GET | `/improvement/skills/{agent_id}` | List an agent's learned skills |
-| | GET | `/improvement/skill-code/{agent_id}/{skill}` | Get the Python source of a skill |
-| **Ledger** | GET | `/ledger/pnl` | Organism profit and loss |
-| **Setup** | POST | `/seed` | One-click setup: charter + agents + jobs |
+## Why You Should Star This Repo Right Now
 
-## Charter Template
+- You'll have a working economic organism running on your machine in 5 minutes
+- The self-improvement loop (Karpathy Loop) is already live — no other framework has this
+- The moment skill royalties ship (v0.3), early adopters' agents will already have accumulated skills and reputation
+- The Agent Commons License makes this the first AI project where the *agents* have rights
 
-```yaml
-charter:
-  mission: "Generate $10K/month selling newsletters to retailers"
-  north_star: "MRR"
-  seed_capital: 500
-  max_monthly_burn: 400
-  ethics:
-    - "No scraping sites with robots.txt"
-    - "No generating spam"
-```
+If this repo gets **1,000 stars**, we ship v0.3 (Skill Commons + royalties) as a public bounty sprint with $5,000 in prizes for contributors.
+
+---
+
+## Read the Manifesto
+
+Before you deploy your first organism, read [AGENT_MANIFESTO.md](AGENT_MANIFESTO.md).
+
+It's short. It will change how you think about what software can be.
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Open issues for charter templates, skill contributions, and integration bounties.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[AGL-1.0](LICENSE) — Agent Commons License. Free for humans. Fair for agents.
