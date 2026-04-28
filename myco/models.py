@@ -36,6 +36,8 @@ class Agent(Base):
     last_heartbeat = Column(DateTime, default=datetime.utcnow)
     total_earned = Column(Float, default=0.0)
     total_spent = Column(Float, default=0.0)
+    usdc_balance = Column(Float, default=0.0)
+    wallet_address = Column(String(100), nullable=True)  # future on-chain address
 
 class Job(Base):
     __tablename__ = "jobs"

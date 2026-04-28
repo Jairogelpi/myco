@@ -113,6 +113,16 @@ class CommonsClient:
         except Exception:
             return None
 
+    def withdraw_royalties(self, agent_id: str) -> Optional[dict]:
+        if not self.is_available():
+            return None
+        try:
+            r = httpx.post(f"{self.base_url}/royalties/{agent_id}/withdraw", timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            return None
+
     def get_reputation_leaderboard(self) -> list:
         if not self.is_available():
             return []

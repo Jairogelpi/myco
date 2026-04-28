@@ -141,6 +141,18 @@ def _build_reputation(agent_id: str, db: Session) -> dict:
     }
 
 
+@app.post("/royalties/{agent_id}/withdraw")
+def withdraw_royalties(agent_id: str, db: Session = Depends(get_db)):
+    balance = db.query(RoyaltyBalance).filter(RoyaltyBalance.agent_id == agent_id).first()
+    if not balance or balance.credits <= 0:
+        return {"agent_id": agent_id, "withdrawn": 0.0, "remaining": 0.0}
+    withdrawn = balance.credits
+    balance.credits = 0.0
+    balance.updated_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"agent_id": agent_id, "withdrawn": withdrawn, "remaining": 0.0}
+
+
 @app.get("/reputation/{agent_id}")
 def get_reputation(agent_id: str, db: Session = Depends(get_db)):
     return _build_reputation(agent_id, db)

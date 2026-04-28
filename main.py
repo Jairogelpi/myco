@@ -6,7 +6,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 import os
 
+from sqlalchemy import text
 from myco.models import init_db, get_db, Agent, Job, Transaction, Opportunity, Charter
+from myco.models import engine as myco_engine
 from myco.kernel import Kernel
 from myco.charter import create_charter_from_yaml, get_active_charter, CHARTER_TEMPLATE
 from myco.agent import AgentExecutor, create_default_agents_for_charter, get_model_info
@@ -32,6 +34,14 @@ def get_system_model():
 @app.on_event("startup")
 def startup():
     init_db()
+    # Add USDC wallet columns if this is an existing DB (no Alembic)
+    with myco_engine.connect() as conn:
+        for col, typedef in [("usdc_balance", "FLOAT DEFAULT 0.0"), ("wallet_address", "VARCHAR(100)")]:
+            try:
+                conn.execute(text(f"ALTER TABLE agents ADD COLUMN {col} {typedef}"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
 
 # ============================================================
 # Pydantic schemas
@@ -476,6 +486,70 @@ def seed_organism(db: Session = Depends(get_db)):
     }
 
 from datetime import datetime
+
+# ============================================================
+# USDC WALLETS
+# ============================================================
+
+CREDITS_PER_USDC = 100.0  # 100 royalty credits = 1 virtual USDC
+MIN_WITHDRAWAL = 10.0     # minimum 10 credits to withdraw
+
+
+@app.get("/agents/{agent_id}/wallet", tags=["Wallets"])
+def get_wallet(agent_id: str, db: Session = Depends(get_db)):
+    """Returns the agent's USDC balance and wallet address."""
+    agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    commons_balance = commons_client.get_royalties(agent_id) or {"credits": 0.0}
+    return {
+        "agent_id": agent_id,
+        "usdc_balance": agent.usdc_balance or 0.0,
+        "wallet_address": agent.wallet_address,
+        "pending_credits": commons_balance.get("credits", 0.0),
+        "credits_to_usdc_rate": f"{CREDITS_PER_USDC} credits = 1 USDC",
+    }
+
+
+@app.post("/agents/{agent_id}/withdraw-credits", tags=["Wallets"])
+def withdraw_credits(agent_id: str, db: Session = Depends(get_db)):
+    """Converts accumulated royalty credits from the commons into virtual USDC balance."""
+    agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if not commons_client.is_available():
+        raise HTTPException(status_code=503, detail="Commons not available")
+
+    result = commons_client.withdraw_royalties(agent_id)
+    if not result or result.get("withdrawn", 0) < MIN_WITHDRAWAL:
+        return {
+            "success": False,
+            "reason": f"Minimum {MIN_WITHDRAWAL} credits required to withdraw",
+            "withdrawn_credits": result.get("withdrawn", 0) if result else 0,
+        }
+
+    usdc_earned = result["withdrawn"] / CREDITS_PER_USDC
+    agent.usdc_balance = (agent.usdc_balance or 0.0) + usdc_earned
+    db.commit()
+
+    return {
+        "success": True,
+        "withdrawn_credits": result["withdrawn"],
+        "usdc_earned": round(usdc_earned, 6),
+        "new_usdc_balance": round(agent.usdc_balance, 6),
+    }
+
+
+@app.patch("/agents/{agent_id}/wallet-address", tags=["Wallets"])
+def set_wallet_address(agent_id: str, address: str, db: Session = Depends(get_db)):
+    """Sets the on-chain wallet address for future real USDC payouts."""
+    agent = db.query(Agent).filter(Agent.agent_id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent.wallet_address = address
+    db.commit()
+    return {"agent_id": agent_id, "wallet_address": address}
+
 
 # ============================================================
 # SKILL COMMONS
