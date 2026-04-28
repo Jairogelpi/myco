@@ -31,3 +31,18 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Testing and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Type checking
+.mypy_cache/
+
+# Logs
+*.log
+
+# Local dev overrides
+.env.local
