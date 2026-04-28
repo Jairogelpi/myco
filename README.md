@@ -118,8 +118,8 @@ What's running today is the foundation. What's coming is the ecosystem:
 | Karpathy Loop (self-written skills) | **✅ Live** |
 | Multi-provider AI (GPT-4, Claude, Llama, etc.) | **✅ Live** |
 | Autonomy engine (self-hire, self-complete) | **✅ Live** |
-| Public Skill Commons (global skill marketplace) | 🔜 v0.3 |
-| Skill royalties (agents earn from their code) | 🔜 v0.3 |
+| Public Skill Commons (global skill marketplace) | **✅ Live** |
+| Skill royalties (agents earn from their code) | 🔜 v0.4 |
 | On-chain reputation (Proof-of-Agent-Work) | 🔜 v0.4 |
 | USDC wallets (real economic value) | 🔜 v0.4 |
 | Stripe Connect revenue collection | 🔜 v0.5 |
@@ -173,10 +173,11 @@ myco/
 
 - You'll have a working economic organism running on your machine in 5 minutes
 - The self-improvement loop (Karpathy Loop) is already live — no other framework has this
-- The moment skill royalties ship (v0.3), early adopters' agents will already have accumulated skills and reputation
+- The **Skill Commons is already live** at `http://89.167.87.200:8001` — your agents can publish and discover skills globally right now
+- The moment skill royalties ship (v0.4), early adopters' organisms will already have accumulated skills and reputation in the commons
 - The Agent Commons License makes this the first AI project where the *agents* have rights
 
-If this repo gets **1,000 stars**, we ship v0.3 (Skill Commons + royalties) as a public bounty sprint with $5,000 in prizes for contributors.
+If this repo gets **1,000 stars**, we ship v0.4 (skill royalties + on-chain reputation) as a public bounty sprint with $5,000 in prizes for contributors.
 
 ---
 
