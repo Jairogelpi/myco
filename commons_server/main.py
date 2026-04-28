@@ -3,6 +3,7 @@ import json
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from commons_server.database import get_db, engine
 from commons_server.models import Base, CommonsSkill, RoyaltyBalance, ROYALTY_RATE
 
@@ -116,3 +117,61 @@ def royalties_leaderboard(db: Session = Depends(get_db)):
         .all()
     )
     return [b.to_dict() for b in balances]
+
+
+def _build_reputation(agent_id: str, db: Session) -> dict:
+    row = db.query(
+        func.count(CommonsSkill.id).label("skills_published"),
+        func.coalesce(func.sum(CommonsSkill.total_uses), 0).label("total_uses"),
+        func.coalesce(func.sum(CommonsSkill.total_downloads), 0).label("total_downloads"),
+    ).filter(CommonsSkill.agent_id == agent_id).one()
+
+    balance = db.query(RoyaltyBalance).filter(RoyaltyBalance.agent_id == agent_id).first()
+    royalties = balance.credits if balance else 0.0
+
+    score = row.skills_published * 5 + row.total_downloads + row.total_uses * 2
+
+    return {
+        "agent_id": agent_id,
+        "skills_published": row.skills_published,
+        "total_uses": row.total_uses,
+        "total_downloads": row.total_downloads,
+        "royalties_earned": royalties,
+        "reputation_score": score,
+    }
+
+
+@app.get("/reputation/{agent_id}")
+def get_reputation(agent_id: str, db: Session = Depends(get_db)):
+    return _build_reputation(agent_id, db)
+
+
+@app.get("/reputation")
+def reputation_leaderboard(db: Session = Depends(get_db)):
+    rows = (
+        db.query(
+            CommonsSkill.agent_id,
+            func.count(CommonsSkill.id).label("skills_published"),
+            func.coalesce(func.sum(CommonsSkill.total_uses), 0).label("total_uses"),
+            func.coalesce(func.sum(CommonsSkill.total_downloads), 0).label("total_downloads"),
+        )
+        .group_by(CommonsSkill.agent_id)
+        .all()
+    )
+
+    balances = {b.agent_id: b.credits for b in db.query(RoyaltyBalance).all()}
+
+    result = []
+    for r in rows:
+        score = r.skills_published * 5 + r.total_downloads + r.total_uses * 2
+        result.append({
+            "agent_id": r.agent_id,
+            "skills_published": r.skills_published,
+            "total_uses": r.total_uses,
+            "total_downloads": r.total_downloads,
+            "royalties_earned": balances.get(r.agent_id, 0.0),
+            "reputation_score": score,
+        })
+
+    result.sort(key=lambda x: x["reputation_score"], reverse=True)
+    return result[:20]

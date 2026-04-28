@@ -563,6 +563,21 @@ def royalties_leaderboard():
     return commons_client.get_royalties_leaderboard()
 
 
+@app.get("/commons/reputation/{agent_id}", tags=["Skill Commons"])
+def get_agent_reputation(agent_id: str):
+    """Returns Proof-of-Agent-Work reputation profile for an agent."""
+    result = commons_client.get_reputation(agent_id)
+    if result is None:
+        return {"agent_id": agent_id, "reputation_score": 0, "commons_available": False}
+    return result
+
+
+@app.get("/commons/reputation", tags=["Skill Commons"])
+def reputation_leaderboard():
+    """Returns the top 20 agents by reputation score (PoAW leaderboard)."""
+    return commons_client.get_reputation_leaderboard()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

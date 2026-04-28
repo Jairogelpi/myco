@@ -103,6 +103,26 @@ class CommonsClient:
         except Exception:
             return []
 
+    def get_reputation(self, agent_id: str) -> Optional[dict]:
+        if not self.is_available():
+            return None
+        try:
+            r = httpx.get(f"{self.base_url}/reputation/{agent_id}", timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            return None
+
+    def get_reputation_leaderboard(self) -> list:
+        if not self.is_available():
+            return []
+        try:
+            r = httpx.get(f"{self.base_url}/reputation", timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            return []
+
 
 # Module-level singleton — import this in main.py and improvement.py
 from myco.config import settings
