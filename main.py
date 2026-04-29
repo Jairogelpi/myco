@@ -39,6 +39,7 @@ def startup():
         ("agents", "usdc_balance", "FLOAT DEFAULT 0.0"),
         ("agents", "wallet_address", "VARCHAR(100)"),
         ("charters", "stripe_funded", "FLOAT DEFAULT 0.0"),
+        ("jobs", "category", "VARCHAR(50)"),
     ]
     with myco_engine.connect() as conn:
         for table, col, typedef in migrations:
@@ -66,6 +67,7 @@ class JobCreate(BaseModel):
     description: str
     budget: float
     job_type: Optional[str] = "task"
+    category: Optional[str] = None
     deadline_hours: Optional[int] = 24
 
 class BidRequest(BaseModel):
@@ -99,6 +101,16 @@ class EvaluateRequest(BaseModel):
 class ExecuteWithSkillsRequest(BaseModel):
     agent_id: str
     task: str
+
+class TaxRuleCreate(BaseModel):
+    rule_type: str  # global|category|agent|job
+    target_id: Optional[str] = None
+    tax_rate: float
+    description: Optional[str] = None
+
+class TaxRuleUpdate(BaseModel):
+    tax_rate: Optional[float] = None
+    description: Optional[str] = None
 
 # ============================================================
 # CHARTER
@@ -260,6 +272,7 @@ def publish_job(payload: JobCreate, db: Session = Depends(get_db)):
         description=payload.description,
         budget=payload.budget,
         job_type=payload.job_type,
+        category=payload.category,
         deadline_hours=payload.deadline_hours
     )
     return {
@@ -863,6 +876,126 @@ def cast_vote(proposal_id: str, req: VoteRequest, db: Session = Depends(get_db))
 
     db.commit()
     return {"voted": True, "choice": req.choice, "weight": weight, **_tally(proposal_id, db)}
+
+# ============================================================
+# TAX RULES
+# ============================================================
+
+@app.get("/tax/rules", tags=["Tax Rules"])
+def list_tax_rules(db: Session = Depends(get_db)):
+    """List all tax rules."""
+    from myco.models import TaxRule
+    rules = db.query(TaxRule).order_by(TaxRule.created_at.desc()).all()
+    return [
+        {
+            "rule_id": r.rule_id,
+            "rule_type": r.rule_type,
+            "target_id": r.target_id,
+            "tax_rate": r.tax_rate,
+            "description": r.description,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rules
+    ]
+
+@app.post("/tax/rules", tags=["Tax Rules"])
+def create_tax_rule(payload: TaxRuleCreate, db: Session = Depends(get_db)):
+    """Create a new tax rule."""
+    from myco.models import TaxRule
+
+    # Validate tax_rate
+    if not 0.0 <= payload.tax_rate <= 1.0:
+        raise HTTPException(status_code=400, detail="tax_rate must be between 0 and 1")
+
+    # Generate rule_id
+    rule_id = Kernel._generate_id("tr")
+
+    rule = TaxRule(
+        rule_id=rule_id,
+        rule_type=payload.rule_type,
+        target_id=payload.target_id,
+        tax_rate=payload.tax_rate,
+        description=payload.description,
+    )
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+
+    return {
+        "rule_id": rule.rule_id,
+        "rule_type": rule.rule_type,
+        "target_id": rule.target_id,
+        "tax_rate": rule.tax_rate,
+        "description": rule.description,
+        "created_at": rule.created_at.isoformat(),
+    }
+
+@app.put("/tax/rules/{rule_id}", tags=["Tax Rules"])
+def update_tax_rule(rule_id: str, payload: TaxRuleUpdate, db: Session = Depends(get_db)):
+    """Update a tax rule."""
+    from myco.models import TaxRule
+
+    rule = db.query(TaxRule).filter_by(rule_id=rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Tax rule not found")
+
+    if payload.tax_rate is not None:
+        if not 0.0 <= payload.tax_rate <= 1.0:
+            raise HTTPException(status_code=400, detail="tax_rate must be between 0 and 1")
+        rule.tax_rate = payload.tax_rate
+
+    if payload.description is not None:
+        rule.description = payload.description
+
+    rule.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(rule)
+
+    return {
+        "rule_id": rule.rule_id,
+        "rule_type": rule.rule_type,
+        "target_id": rule.target_id,
+        "tax_rate": rule.tax_rate,
+        "description": rule.description,
+        "created_at": rule.created_at.isoformat(),
+    }
+
+@app.delete("/tax/rules/{rule_id}", tags=["Tax Rules"])
+def delete_tax_rule(rule_id: str, db: Session = Depends(get_db)):
+    """Delete a tax rule."""
+    from myco.models import TaxRule
+
+    rule = db.query(TaxRule).filter_by(rule_id=rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Tax rule not found")
+
+    db.delete(rule)
+    db.commit()
+
+    return {"deleted": True, "rule_id": rule_id}
+
+@app.post("/tax/calculate", tags=["Tax Rules"])
+def calculate_tax(
+    job_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    category: Optional[str] = None,
+    amount: float = 100.0,
+    db: Session = Depends(get_db)
+):
+    """Calculate tax rate and amount (without applying)."""
+    from myco.tax import TaxResolver
+
+    resolver = TaxResolver(db)
+    tax_rate, tax_reason = resolver.resolve(job_id, agent_id, category)
+    tax_amount = amount * tax_rate
+
+    return {
+        "amount": amount,
+        "tax_rate": tax_rate,
+        "tax_amount": tax_amount,
+        "agent_receives": amount - tax_amount,
+        "tax_reason": tax_reason,
+    }
 
 
 if __name__ == "__main__":

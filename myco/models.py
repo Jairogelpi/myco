@@ -47,6 +47,7 @@ class Job(Base):
     publisher = Column(String(16), nullable=False)  # agent_id or "kernel"
     description = Column(Text, nullable=False)
     job_type = Column(String(50), default="task")  # task, need, service
+    category = Column(String(50), nullable=True)  # blog_posts, design, code_review, etc.
     budget = Column(Float, default=0.0)
     deadline_hours = Column(Integer, default=24)
     status = Column(String(20), default="open")  # open, assigned, completed, failed
@@ -96,6 +97,17 @@ class Vote(Base):
     choice = Column(String(4), nullable=False)  # "yes" or "no"
     weight = Column(Float, default=1.0)          # reputation_score at time of vote
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class TaxRule(Base):
+    __tablename__ = "tax_rules"
+    id = Column(Integer, primary_key=True, index=True)
+    rule_id = Column(String(16), unique=True, index=True)  # "tr_abc123"
+    rule_type = Column(String(20), nullable=False)  # global|category|agent|job
+    target_id = Column(String(100), nullable=True)  # category name, agent_id, or job_id
+    tax_rate = Column(Float, nullable=False)  # 0.15 = 15%
+    description = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

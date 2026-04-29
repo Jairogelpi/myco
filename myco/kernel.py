@@ -7,6 +7,7 @@ from sqlalchemy import func
 
 from myco.models import Agent, Job, Transaction, Opportunity, Charter
 from myco.config import settings
+from myco.tax import TaxResolver
 
 class Kernel:
     """
@@ -142,14 +143,15 @@ class Kernel:
     # MARKETPLACE: Job Board + Matching
     # ============================================================
 
-    def publish_job(self, publisher: str, description: str, budget: float, 
-                    job_type: str = "task", deadline_hours: int = 24) -> Job:
+    def publish_job(self, publisher: str, description: str, budget: float,
+                    job_type: str = "task", category: str = None, deadline_hours: int = 24) -> Job:
         """Publishes a Job to the internal marketplace."""
         job = Job(
             job_id=self._generate_id("job"),
             publisher=publisher,
             description=description,
             job_type=job_type,
+            category=category,
             budget=budget,
             deadline_hours=deadline_hours,
             status="open"
@@ -203,7 +205,9 @@ class Kernel:
         
         # Payment calculation
         payment = job.budget
-        tax = payment * settings.KERNEL_TAX_RATE
+        resolver = TaxResolver(self.db)
+        tax_rate, tax_reason = resolver.resolve(job_id, worker.agent_id, job.category)
+        tax = payment * tax_rate
         net_payment = payment - tax
         
         # Update worker wallet
@@ -236,6 +240,8 @@ class Kernel:
             "worker": worker.agent_id,
             "payment": net_payment,
             "tax": tax,
+            "tax_rate": tax_rate,
+            "tax_reason": tax_reason,
             "reputation": worker.reputation
         }
 
